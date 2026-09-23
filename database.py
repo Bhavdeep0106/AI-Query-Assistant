@@ -1,135 +1,185 @@
 import sqlite3
-from datetime import date, timedelta
-import random
+
+from text_to_sql import generate_sql, validate_sql, execute_sql
 
 
 DB_NAME = "database.db"
 
 
-def create_database():
+TEST_CASES = [
+    {
+        "question": "How many customers are there?",
+        "expected_sql": "SELECT COUNT(*) FROM customers"
+    },
+    {
+        "question": "How many products are there?",
+        "expected_sql": "SELECT COUNT(*) FROM products"
+    },
+    {
+        "question": "What is the average product price?",
+        "expected_sql": "SELECT AVG(price) FROM products"
+    },
+    {
+        "question": "What are the 5 most expensive products?",
+        "expected_sql": """
+            SELECT name, price
+            FROM products
+            ORDER BY price DESC
+            LIMIT 5
+        """
+    },
+    {
+        "question": "Which country has the most customers?",
+        "expected_sql": """
+            SELECT country, COUNT(*) AS customer_count
+            FROM customers
+            GROUP BY country
+            ORDER BY customer_count DESC
+            LIMIT 1
+        """
+    },
+    {
+        "question": "How many completed orders are there?",
+        "expected_sql": """
+            SELECT COUNT(*)
+            FROM orders
+            WHERE status = 'completed'
+        """
+    },
+    {
+        "question": "What is the total quantity of products sold?",
+        "expected_sql": """
+            SELECT SUM(quantity)
+            FROM order_items
+        """
+    },
+    {
+        "question": "Which products sold the most?",
+        "expected_sql": """
+            SELECT p.name, SUM(oi.quantity) AS total_quantity
+            FROM products p
+            JOIN order_items oi
+                ON p.id = oi.product_id
+            GROUP BY p.id, p.name
+            ORDER BY total_quantity DESC
+            LIMIT 1
+        """
+    },
+    {
+        "question": "How many orders does each customer have?",
+        "expected_sql": """
+            SELECT c.name, COUNT(o.id) AS order_count
+            FROM customers c
+            LEFT JOIN orders o
+                ON c.id = o.customer_id
+            GROUP BY c.id, c.name
+            ORDER BY order_count DESC
+        """
+    },
+    {
+        "question": "Which products have never been ordered?",
+        "expected_sql": """
+            SELECT p.name
+            FROM products p
+            LEFT JOIN order_items oi
+                ON p.id = oi.product_id
+            WHERE oi.product_id IS NULL
+        """
+    }
+]
+
+
+def run_query(sql):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    cursor.executescript("""
-    DROP TABLE IF EXISTS order_items;
-    DROP TABLE IF EXISTS orders;
-    DROP TABLE IF EXISTS products;
-    DROP TABLE IF EXISTS customers;
+    cursor.execute(sql)
 
-    CREATE TABLE customers (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        country TEXT NOT NULL
-    );
+    rows = cursor.fetchall()
 
-    CREATE TABLE products (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        price REAL NOT NULL
-    );
-
-    CREATE TABLE orders (
-        id INTEGER PRIMARY KEY,
-        customer_id INTEGER,
-        order_date DATE NOT NULL,
-        status TEXT NOT NULL,
-        FOREIGN KEY (customer_id) REFERENCES customers(id)
-    );
-
-    CREATE TABLE order_items (
-        id INTEGER PRIMARY KEY,
-        order_id INTEGER,
-        product_id INTEGER,
-        quantity INTEGER NOT NULL,
-        FOREIGN KEY (order_id) REFERENCES orders(id),
-        FOREIGN KEY (product_id) REFERENCES products(id)
-    );
-    """)
-
-    customers = [
-        (1, "Rahul Sharma", "rahul@example.com", "India"),
-        (2, "Aarav Mehta", "aarav@example.com", "India"),
-        (3, "Emma Smith", "emma@example.com", "USA"),
-        (4, "John Wilson", "john@example.com", "UK"),
-        (5, "Sophia Brown", "sophia@example.com", "USA"),
-        (6, "Liam Jones", "liam@example.com", "UK"),
-        (7, "Priya Singh", "priya@example.com", "India"),
-        (8, "Daniel Lee", "daniel@example.com", "Singapore"),
-    ]
-
-    products = [
-        (1, "Laptop Pro", "Electronics", 1200),
-        (2, "Wireless Mouse", "Electronics", 40),
-        (3, "Mechanical Keyboard", "Electronics", 100),
-        (4, "Running Shoes", "Sports", 90),
-        (5, "Yoga Mat", "Sports", 30),
-        (6, "Coffee Maker", "Home", 150),
-        (7, "Desk Lamp", "Home", 60),
-        (8, "Backpack", "Accessories", 70),
-        (9, "Water Bottle", "Accessories", 25),
-        (10, "Headphones", "Electronics", 200),
-    ]
-
-    cursor.executemany(
-        "INSERT INTO customers VALUES (?, ?, ?, ?)",
-        customers
-    )
-
-    cursor.executemany(
-        "INSERT INTO products VALUES (?, ?, ?, ?)",
-        products
-    )
-
-    start_date = date(2025, 1, 1)
-
-    orders = []
-    order_items = []
-
-    order_id = 1
-    item_id = 1
-
-    random.seed(42)
-
-    for _ in range(100):
-        customer_id = random.randint(1, len(customers))
-        order_date = start_date + timedelta(days=random.randint(0, 364))
-        status = random.choice(["completed", "completed", "completed", "cancelled"])
-
-        orders.append(
-            (order_id, customer_id, order_date.isoformat(), status)
-        )
-
-        number_of_items = random.randint(1, 3)
-
-        for _ in range(number_of_items):
-            product_id = random.randint(1, len(products))
-            quantity = random.randint(1, 4)
-
-            order_items.append(
-                (item_id, order_id, product_id, quantity)
-            )
-
-            item_id += 1
-
-        order_id += 1
-
-    cursor.executemany(
-        "INSERT INTO orders VALUES (?, ?, ?, ?)",
-        orders
-    )
-
-    cursor.executemany(
-        "INSERT INTO order_items VALUES (?, ?, ?, ?)",
-        order_items
-    )
-
-    conn.commit()
     conn.close()
 
-    print("Database created successfully!")
+    return rows
+
+
+def normalize_result(rows):
+    return sorted(
+        [tuple(row) for row in rows],
+        key=lambda row: str(row)
+    )
+
+
+def evaluate():
+
+    passed = 0
+    failed = 0
+
+    print("\nRunning result accuracy evaluation...\n")
+
+    for i, test in enumerate(TEST_CASES, 1):
+
+        question = test["question"]
+
+        print(f"{i}. {question}")
+
+        try:
+
+            # Generate SQL using the AI
+            generated_sql = generate_sql(question)
+
+            # Validate generated SQL
+            is_valid, message = validate_sql(generated_sql)
+
+            if not is_valid:
+                print("❌ FAIL - Invalid SQL")
+                print(message)
+                failed += 1
+                continue
+
+            # Execute generated SQL
+            generated_result = execute_sql(generated_sql)[1]
+
+            # Execute expected SQL
+            expected_result = run_query(test["expected_sql"])
+
+            # Compare results
+            if normalize_result(generated_result) == normalize_result(expected_result):
+
+                print("✅ PASS")
+                passed += 1
+
+            else:
+
+                print("❌ FAIL")
+                print("Generated SQL:")
+                print(generated_sql)
+
+                print("\nExpected result:")
+                print(expected_result)
+
+                print("\nGenerated result:")
+                print(generated_result)
+
+                failed += 1
+
+        except Exception as e:
+
+            print("❌ ERROR")
+            print(e)
+
+            failed += 1
+
+        print()
+
+    total = passed + failed
+    accuracy = (passed / total) * 100 if total else 0
+
+    print("=" * 45)
+    print(f"Passed: {passed}/{total}")
+    print(f"Failed: {failed}/{total}")
+    print(f"Result Accuracy: {accuracy:.1f}%")
+    print("=" * 45)
 
 
 if __name__ == "__main__":
-    create_database()
+    evaluate()

@@ -9,6 +9,7 @@ st.set_page_config(
     page_icon="🤖",
     layout="wide"
 )
+
 if "query_history" not in st.session_state:
     st.session_state.query_history = []
 
@@ -34,16 +35,31 @@ with st.sidebar:
         )
 
 st.title("🤖 AI Data Analyst")
-st.write("Ask questions about your database using natural language.")
 
+st.markdown(
+    "### Natural language → SQL → Insights"
+)
 
-question = st.text_input(
-    "Ask a question",
-    placeholder="e.g. Which products sold the most?"
+st.caption(
+    "Ask questions about your e-commerce database and get instant answers."
 )
 
 
-if st.button("Generate", type="primary"):
+st.subheader("Ask your question")
+
+question = st.text_input(
+    "Natural language query",
+    placeholder="e.g. Which products sold the most?",
+    label_visibility="collapsed"
+)
+
+generate_clicked = st.button(
+    "🚀 Generate Insights",
+    type="primary",
+    use_container_width=True
+)
+
+if generate_clicked:
 
     if not question:
         st.warning("Please enter a question.")
@@ -138,23 +154,61 @@ if st.button("Generate", type="primary"):
 
 
             # -------------------------
-            # 6. Automatic Chart
+            # 6. Automatic Visualization
             # -------------------------
-
-            if len(df.columns) == 2:
-
-                x_col = df.columns[0]
-                y_col = df.columns[1]
-
-                if pd.api.types.is_numeric_dtype(df[y_col]):
-
+            
+            if len(df.columns) >= 2:
+            
+                first_col = df.columns[0]
+                second_col = df.columns[1]
+            
+                first_is_numeric = pd.api.types.is_numeric_dtype(
+                    df[first_col]
+                )
+            
+                second_is_numeric = pd.api.types.is_numeric_dtype(
+                    df[second_col]
+                )
+            
+                if not first_is_numeric and second_is_numeric:
+                
                     fig = px.bar(
                         df,
-                        x=x_col,
-                        y=y_col,
-                        title=f"{y_col} by {x_col}"
+                        x=first_col,
+                        y=second_col,
+                        title=f"{second_col} by {first_col}"
                     )
-
+            
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
+                    )
+            
+                elif not first_is_numeric and pd.api.types.is_datetime64_any_dtype(
+                    df[first_col]
+                ) and second_is_numeric:
+            
+                    fig = px.line(
+                        df,
+                        x=first_col,
+                        y=second_col,
+                        title=f"{second_col} over time"
+                    )
+            
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
+                    )
+            
+                elif first_is_numeric and second_is_numeric:
+                
+                    fig = px.scatter(
+                        df,
+                        x=first_col,
+                        y=second_col,
+                        title=f"{second_col} vs {first_col}"
+                    )
+            
                     st.plotly_chart(
                         fig,
                         use_container_width=True
