@@ -1,4 +1,4 @@
-# AI Data Analyst
+# AI Query Assistant
 
 An AI-powered Text-to-SQL application that converts natural language questions into SQL, validates and executes the queries, automatically corrects SQL errors, and visualizes results.
 
