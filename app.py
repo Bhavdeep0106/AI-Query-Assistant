@@ -8,7 +8,7 @@ from query_history import create_history_table, save_query, get_query_history,cl
 from database import create_database
 
 st.set_page_config(
-    page_title="AI Data Analyst",
+    page_title="AI Query Assistant",
     page_icon="🤖",
     layout="wide"
 )
@@ -65,7 +65,7 @@ with st.sidebar:
             st.session_state.confirm_clear_history = False
             st.rerun()
 
-st.title("🤖 AI Data Analyst")
+st.title("🤖 AI Query Assistant")
 st.markdown(
     "### Natural language → SQL → Insights"
 )
