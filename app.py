@@ -14,6 +14,20 @@ st.set_page_config(
 )
 
 create_database()
+import sqlite3
+
+conn = sqlite3.connect("database.db")
+
+st.sidebar.write("Database check")
+
+for table in ["customers", "products", "orders", "order_items"]:
+    count = conn.execute(
+        f"SELECT COUNT(*) FROM {table}"
+    ).fetchone()[0]
+
+    st.sidebar.write(f"{table}: {count} rows")
+
+conn.close()
 create_history_table()
 
 with st.sidebar:
